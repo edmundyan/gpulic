@@ -193,7 +193,7 @@ public:
   {
     for (int i=0; i<rows; i++)
       for (int j=0; j<cols; j++) {
-	Idata[i][j] /= hitdata[i][j];
+        Idata[i][j] /= hitdata[i][j];
       }
   }
 
@@ -336,13 +336,23 @@ lic()
   int nsum=0, tmpsum=0;
 
 
+  for (int i=0; i<10; i++) {
+    for (int j=0; j<10; j++) {
+      if (grid->hitdata[i][j] < minNumHits) {
+        s.GenStreamLine(i,j);
+        grid->ComputeI(s,nsum);
+        printf("%lf, ", grid->Idata[i][j]);
+      }
+    }
+  }
+
+
+ return;
   for (int i=0; i<grid->rows; i++) {
     for (int j=0; j<grid->cols; j++) {
       if (grid->hitdata[i][j] < minNumHits) {
         s.GenStreamLine(i,j);
         I = I0 = grid->ComputeI(s,nsum);
-        printf("cpu: %d\n", nsum);
-        return;
         tmpsum = nsum;
         for (m=1; m < M; m++)
           grid->ComputeIFwd(s,I,m,tmpsum);
@@ -388,7 +398,7 @@ main(int argc, char *argv[])
   readPts(argv[1],argv[2],grid);
   docolors();
   lic();
-  // printf("--------------\n");
+  printf("\n--------------\n");
   licGPU(grid->rows, grid->cols, grid->vecdata_1d, grid->texdata_1d);
   // grid->Print();
 }
