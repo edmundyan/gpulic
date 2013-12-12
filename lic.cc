@@ -432,12 +432,12 @@ main(int argc, char *argv[])
 
   readPts(argv[1],argv[2],grid);
   docolors();
-  lic();
+  // lic();
   // printf("\n--------------\n");
   double *IdataGPU;
   IdataGPU = new double [rows * cols];
   licGPU(grid->rows, grid->cols, grid->vecdata_1d, grid->texdata_1d, IdataGPU);
   // grid->Print();
-  grid->Print2(IdataGPU);
+  // grid->Print2(IdataGPU);
 }
 

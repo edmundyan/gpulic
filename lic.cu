@@ -199,10 +199,10 @@ __device__ double ComputeIBwd(Point* bwd, Point* fwd, Point origin, double &I, i
 }
 
 __global__ void Normalize(int rows, int cols, double *Idata, int *hitdata){
-  for (int i=0; i<rows; i++)
-    for (int j=0; j<cols; j++) {
-      Idata[i * cols + j] /= hitdata[i * cols + j];
-    }
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  Idata[i * cols + j] /= hitdata[i * cols + j];
 }
 __global__ void lic_kernel(int rows, int cols, Vector *vecdata, int *hitdata, int *texdata, double *Idata) {
   Point fwd[M+L-1];
@@ -215,21 +215,18 @@ __global__ void lic_kernel(int rows, int cols, Vector *vecdata, int *hitdata, in
   int m;
   int tmpsum=0;
 
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-  for(int i = 0; i < rows; i++) {
-    for(int j = 0; j < cols; j++) {
-      GenStreamLine(i, j, bwd, fwd, vecdata, rows, cols, &origin);
-      I = I0 = ComputeI(bwd, fwd, origin, numvalid, rows, cols, Idata, hitdata, texdata);
-      tmpsum = numvalid;
-      for (m=1; m < M; m++)
-        ComputeIFwd(bwd, fwd, origin, I, m, tmpsum, rows, cols, Idata, hitdata, texdata);
-      I = I0;
-      tmpsum = numvalid;
-      for (m=1; m < M; m++)
-        ComputeIBwd(bwd, fwd, origin, I, -m, tmpsum, rows, cols, Idata, hitdata, texdata);
-      // printf("%lf, ", Idata[i * cols + j]);
-    }
-  }
+  GenStreamLine(i, j, bwd, fwd, vecdata, rows, cols, &origin);
+  I = I0 = ComputeI(bwd, fwd, origin, numvalid, rows, cols, Idata, hitdata, texdata);
+  tmpsum = numvalid;
+  for (m=1; m < M; m++)
+    ComputeIFwd(bwd, fwd, origin, I, m, tmpsum, rows, cols, Idata, hitdata, texdata);
+  I = I0;
+  tmpsum = numvalid;
+  for (m=1; m < M; m++)
+    ComputeIBwd(bwd, fwd, origin, I, -m, tmpsum, rows, cols, Idata, hitdata, texdata);
   return;
 }
 
@@ -255,8 +252,8 @@ void licGPU(int rows, int cols, Vector *vecdata, int *texdata, double *IdataGPU)
   CUDA_CHECK_RETURN(cudaMemset(Idata_dev, 0, sizeof(double) * rows * cols));
 
   // set up parameters for threads structure
-  dim3 dimGrid(1, 1);
-  dim3 dimBlock(1, 1, 1);
+  dim3 dimGrid(64, 64);
+  dim3 dimBlock(32, 32, 1);
 
   lic_kernel<<<dimGrid, dimBlock>>>(rows, cols, vecdata_dev, hitdata_dev, texdata_dev, Idata_dev);
   cudaThreadSynchronize();
