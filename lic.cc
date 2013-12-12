@@ -2,9 +2,10 @@
 #include "vector.h"
 #include "stdlib.h"
 
+
 double maxvecmag=0.;
 
-void licGPU(int rows, int cols, Vector *vecdata, int *texdata);
+void licGPU(int rows, int cols, Vector *vecdata, int *texdata, double *IdataGPU);
 
 class ColorTable {
 public:
@@ -158,9 +159,9 @@ public:
 
     if (getPixel(s[m],i,j)) {
       if (validpt(s[m-L]))
-	numvalid++;
+        numvalid++;
       if (validpt(s[m+1+L]))
-	numvalid--;
+        numvalid--;
       k = 1./numvalid;
       Idata[i][j] += I += k*(getT(s[m-L]) - getT(s[m+1+L]));
       hitdata[i][j]++;
@@ -216,17 +217,41 @@ public:
     printf("P3\t%d\t%d\t255\n",cols,rows);
     for (int i=0; i<rows; i++)
       for (int j=0; j<cols; j++) {
-	//printf("%d ",(int)Idata[i][j]);
-	scale = Idata[i][j]/255.;
-	mag = vecdata[i][j].size();
-	magind = mag/maxvecmag;
-	//printf("magind:%lf\n",magind);
-	color = table[magind]*scale;
-	//	color.Print();
-	printf("%d %d %d ",(int)color.coord[0],(int)color.coord[1],
-	       (int)color.coord[2]);
+        //printf("%d ",(int)Idata[i][j]);
+        scale = Idata[i][j]/255.;
+        mag = vecdata[i][j].size();
+        magind = mag/maxvecmag;
+        //printf("magind:%lf\n",magind);
+        color = table[magind]*scale;
+        //	color.Print();
+        printf("%d %d %d ",(int)color.coord[0],(int)color.coord[1],
+               (int)color.coord[2]);
       }
   }
+
+  void Print2(double *IdataGPU)
+  {
+    double scale;
+    double magind;
+    double mag;
+    Point color;
+
+    //printf("P2\t%d\t%d\t255\n",rows,cols);
+    printf("P3\t%d\t%d\t255\n",cols,rows);
+    for (int i=0; i<rows; i++)
+      for (int j=0; j<cols; j++) {
+        //printf("%d ",(int)Idata[i][j]);
+        scale = IdataGPU[i*cols+j]/255.;
+        mag = vecdata[i][j].size();
+        magind = mag/maxvecmag;
+        //printf("magind:%lf\n",magind);
+        color = table[magind]*scale;
+        //  color.Print();
+        printf("%d %d %d ",(int)color.coord[0],(int)color.coord[1],
+               (int)color.coord[2]);
+      }
+  }
+
 };
 
 RegGrid *grid;
@@ -335,19 +360,26 @@ lic()
   StreamLine s;
   int nsum=0, tmpsum=0;
 
+  // // s.GenStreamLine(0,0);
+  // // I = I0 = grid->ComputeI(s,nsum);
+  // // printf("%lf, ", grid->Idata[0][0]);
+  // for (int i=0; i<10; i++) {
+  //   for (int j=0; j<10; j++) {
+  //     s.GenStreamLine(i,j);
+  //     I = I0 = grid->ComputeI(s,nsum);
+  //     tmpsum = nsum;
+  //     for (m=1; m < M; m++)
+  //       grid->ComputeIFwd(s,I,m,tmpsum);
+  //     I = I0;
+  //     tmpsum = nsum;
+  //     for (m=1; m < M; m++)
+  //       grid->ComputeIBwd(s,I,-m,tmpsum);
+  //     printf("%lf, ", grid->Idata[i][j]);
+  //   }
+  // }
 
-  for (int i=0; i<10; i++) {
-    for (int j=0; j<10; j++) {
-      if (grid->hitdata[i][j] < minNumHits) {
-        s.GenStreamLine(i,j);
-        grid->ComputeI(s,nsum);
-        printf("%lf, ", grid->Idata[i][j]);
-      }
-    }
-  }
+  // return;
 
-
- return;
   for (int i=0; i<grid->rows; i++) {
     for (int j=0; j<grid->cols; j++) {
       if (grid->hitdata[i][j] < minNumHits) {
@@ -364,6 +396,15 @@ lic()
     }
   }
   grid->Normalize();
+
+  // for(int i = 0; i < 10; i++) {
+  //   for(int j = 0; j < 10; j++) {
+  //     printf("%lf, ", grid->Idata[i][j]);
+  //   }
+  // }
+
+
+
 }
 
 void
@@ -375,12 +416,6 @@ docolors() {
 }
 
 
-void lic2()
-{
-  licGPU(grid->rows, grid->cols, grid->vecdata_1d, grid->texdata_1d);
-
-
-}
 main(int argc, char *argv[])
 {
   int rows, cols;
@@ -398,8 +433,11 @@ main(int argc, char *argv[])
   readPts(argv[1],argv[2],grid);
   docolors();
   lic();
-  printf("\n--------------\n");
-  licGPU(grid->rows, grid->cols, grid->vecdata_1d, grid->texdata_1d);
+  // printf("\n--------------\n");
+  double *IdataGPU;
+  IdataGPU = new double [rows * cols];
+  licGPU(grid->rows, grid->cols, grid->vecdata_1d, grid->texdata_1d, IdataGPU);
   // grid->Print();
+  grid->Print2(IdataGPU);
 }
 
