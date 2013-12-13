@@ -1,1 +1,2 @@
-./lic ps.vec.256.256.3 noise.256.256 256 256
+#! /bin/bash
+./lic ps.vec.256.256.3 noise.256.256 256 256 $1

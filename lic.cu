@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include "point.h"
 #include <cuda.h>
+ #include <math.h>
 static const int WORK_SIZE = 256;
 
 /**
@@ -139,7 +140,6 @@ __device__ double ComputeI(Point* bwd, Point* fwd, Point origin, int &numvalid, 
   T=0;
   numvalid = 0;
 
-
   for(i=-L; i<= L; i++) {
     Point p = getSLIndex(i, bwd, fwd, origin);
     if (validpt(p, rows, cols)) {
@@ -149,9 +149,7 @@ __device__ double ComputeI(Point* bwd, Point* fwd, Point origin, int &numvalid, 
   }
   if (getPixel(origin, i, j, rows, cols)) {
     k = 1./numvalid;
-    // printf("GPU inside IF statement");
     Idata[i * cols + j] += I = T*k;
-    // printf("[%d] = %lf", i * cols + j, T*k);
     hitdata[i * cols + j]++;
     return I;
   }
@@ -172,7 +170,8 @@ __device__ double ComputeIFwd(Point* bwd, Point* fwd, Point origin, double &I, i
       numvalid--;
     k = 1./numvalid;
     Idata[i * cols + j] += I += k*(getT(p1, texdata, rows, cols) - getT(p2, texdata, rows, cols));
-    hitdata[i * cols +j]++;
+    I += k*(getT(p1, texdata, rows, cols) - getT(p2, texdata, rows, cols));
+    hitdata[i * cols + j]++;
     return I;
   }
   return 0;
@@ -192,7 +191,7 @@ __device__ double ComputeIBwd(Point* bwd, Point* fwd, Point origin, double &I, i
       numvalid--;
     k = 1./numvalid;
     Idata[i * cols + j] += I += k*(getT(p1, texdata, rows, cols) - getT(p2, texdata, rows, cols));
-    hitdata[i * cols +j]++;
+    hitdata[i * cols + j]++;
     return I;
   }
   return 0;
@@ -218,16 +217,17 @@ __global__ void lic_kernel(int rows, int cols, Vector *vecdata, int *hitdata, in
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-  GenStreamLine(i, j, bwd, fwd, vecdata, rows, cols, &origin);
-  I = I0 = ComputeI(bwd, fwd, origin, numvalid, rows, cols, Idata, hitdata, texdata);
-  tmpsum = numvalid;
-  for (m=1; m < M; m++)
-    ComputeIFwd(bwd, fwd, origin, I, m, tmpsum, rows, cols, Idata, hitdata, texdata);
-  I = I0;
-  tmpsum = numvalid;
-  for (m=1; m < M; m++)
-    ComputeIBwd(bwd, fwd, origin, I, -m, tmpsum, rows, cols, Idata, hitdata, texdata);
-  return;
+  if (hitdata[i*cols+j] < MINNUMHITS) {
+    GenStreamLine(i, j, bwd, fwd, vecdata, rows, cols, &origin);
+    I = I0 = ComputeI(bwd, fwd, origin, numvalid, rows, cols, Idata, hitdata, texdata);
+    tmpsum = numvalid;
+    for (m=1; m < M; m++)
+       ComputeIFwd(bwd, fwd, origin, I, m, tmpsum, rows, cols, Idata, hitdata, texdata);
+    I = I0;
+    tmpsum = numvalid;
+    for (m=1; m < M; m++)
+      ComputeIBwd(bwd, fwd, origin, I, -m, tmpsum, rows, cols, Idata, hitdata, texdata);
+  }
 }
 
 
@@ -252,8 +252,8 @@ void licGPU(int rows, int cols, Vector *vecdata, int *texdata, double *IdataGPU)
   CUDA_CHECK_RETURN(cudaMemset(Idata_dev, 0, sizeof(double) * rows * cols));
 
   // set up parameters for threads structure
-  dim3 dimGrid(64, 64);
-  dim3 dimBlock(32, 32, 1);
+  dim3 dimGrid(sqrt(cols), sqrt(rows));
+  dim3 dimBlock(sqrt(cols), sqrt(rows), 1);
 
   lic_kernel<<<dimGrid, dimBlock>>>(rows, cols, vecdata_dev, hitdata_dev, texdata_dev, Idata_dev);
   cudaThreadSynchronize();
@@ -262,13 +262,6 @@ void licGPU(int rows, int cols, Vector *vecdata, int *texdata, double *IdataGPU)
 
 
   CUDA_CHECK_RETURN(cudaMemcpy(IdataGPU, Idata_dev, sizeof(double) * rows * cols, cudaMemcpyDeviceToHost));
-  // printf("\nFINALLLLL\n\n");
-  // for(int i = 0; i < 10; i++) {
-  //   for(int j = 0; j < 10; j++) {
-  //     printf("%lf, ", Idata[i * cols + j]);
-  //   }
-  // }
-
   CUDA_CHECK_RETURN(cudaFree((void*) hitdata_dev));
   CUDA_CHECK_RETURN(cudaFree((void*) vecdata_dev));
   CUDA_CHECK_RETURN(cudaFree((void*) texdata_dev));

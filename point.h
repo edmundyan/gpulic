@@ -11,7 +11,7 @@
 #define DEVICE
 #endif
 
-#define minNumHits 12
+#define MINNUMHITS 12
 #define Ht .5
 #define M 10
 #define L 10

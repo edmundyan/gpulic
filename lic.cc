@@ -260,16 +260,12 @@ void StreamLine::GenStreamLine(int i, int j)
 {
   Point b,f;
 
-  //printf("Start\n");
   origin = f = b = grid->getCenter(i,j);
   for (int k=0; k<M+L-1; k++) {
     RK(f,Ht);
     fwd[k] = f;
-    //f.Print();
     RK(b,-Ht);
     bwd[k] = b;
-    //printf("b:");
-    //b.Print();
   }
 }
 
@@ -360,29 +356,9 @@ lic()
   StreamLine s;
   int nsum=0, tmpsum=0;
 
-  // // s.GenStreamLine(0,0);
-  // // I = I0 = grid->ComputeI(s,nsum);
-  // // printf("%lf, ", grid->Idata[0][0]);
-  // for (int i=0; i<10; i++) {
-  //   for (int j=0; j<10; j++) {
-  //     s.GenStreamLine(i,j);
-  //     I = I0 = grid->ComputeI(s,nsum);
-  //     tmpsum = nsum;
-  //     for (m=1; m < M; m++)
-  //       grid->ComputeIFwd(s,I,m,tmpsum);
-  //     I = I0;
-  //     tmpsum = nsum;
-  //     for (m=1; m < M; m++)
-  //       grid->ComputeIBwd(s,I,-m,tmpsum);
-  //     printf("%lf, ", grid->Idata[i][j]);
-  //   }
-  // }
-
-  // return;
-
   for (int i=0; i<grid->rows; i++) {
     for (int j=0; j<grid->cols; j++) {
-      if (grid->hitdata[i][j] < minNumHits) {
+      if (grid->hitdata[i][j] < MINNUMHITS) {
         s.GenStreamLine(i,j);
         I = I0 = grid->ComputeI(s,nsum);
         tmpsum = nsum;
@@ -396,15 +372,6 @@ lic()
     }
   }
   grid->Normalize();
-
-  // for(int i = 0; i < 10; i++) {
-  //   for(int j = 0; j < 10; j++) {
-  //     printf("%lf, ", grid->Idata[i][j]);
-  //   }
-  // }
-
-
-
 }
 
 void
@@ -419,25 +386,29 @@ docolors() {
 main(int argc, char *argv[])
 {
   int rows, cols;
+  int cpu_or_gpu = 0;
 
   if (argc < 5) {
-    printf("Usage: %s [vec file] [tex file] [rows] [cols]\n",argv[0]);
+    printf("Usage: %s [vec file] [tex file] [rows] [cols] [gpu?:0/1]\n",argv[0]);
     exit(-1);
   }
 
   rows = atoi(argv[3]);
   cols = atoi(argv[4]);
+  if(argc == 6)
+    cpu_or_gpu =  atoi(argv[5]);
 
   grid = new RegGrid(rows,cols);
-
   readPts(argv[1],argv[2],grid);
   docolors();
-  // lic();
-  // printf("\n--------------\n");
-  double *IdataGPU;
-  IdataGPU = new double [rows * cols];
-  licGPU(grid->rows, grid->cols, grid->vecdata_1d, grid->texdata_1d, IdataGPU);
-  // grid->Print();
-  // grid->Print2(IdataGPU);
+  if(cpu_or_gpu == 0) {
+    lic();
+    grid->Print();
+  } else {
+    double *IdataGPU;
+    IdataGPU = new double [rows * cols];
+    licGPU(grid->rows, grid->cols, grid->vecdata_1d, grid->texdata_1d, IdataGPU);
+    grid->Print2(IdataGPU);
+  }
 }
 
